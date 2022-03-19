@@ -5,6 +5,7 @@ import random
 import math
 import re
 import time
+import numpy as np
 
 class CFRTree:
     """
@@ -294,7 +295,6 @@ class CFRNode:
         for child in base_node.children:
             n = CFRChanceNode(child, self) if child.isChance() else CFRNode(child, self)
             self.children.append(n)
-
 # icfr tag
         # self.inRM = InternalRM()
         # self.exRM = {}
@@ -579,6 +579,61 @@ class CFRNode:
                     u[p] += child_u[p] * s[a]
 
         return u
+    
+    def getEpsilon(self, action_plan, mu, player):
+        # epsilon relating to this informationset
+        DeviU = self.getExpectedDeviatedUtility(mu, player)
+        LattU = self.getLatter(self.information_set.id, action_plan, player)
+        # print('DeviatedUtility:', DeviU)
+        # print('LatterUtility:', LattU)
+        return DeviU - LattU
+    
+    def getExpectedDeviatedUtility(self, mu, player):
+        '''
+        returns one value of delta of this node 
+        '''
+        if (self.isLeaf()):
+            return np.array(self.utility)[player]
+        # if (self.isChance()):
+        #     u = np.zeros(len(self.children))
+        #     for a in range(len(self.children)):
+        #         u[a] = self.children[a].getExpectedDeviatedUtility(mu)[0]
+        #     return u
+        u = 0
+        if (self.player == player and not self.isChance()):
+            s = mu
+        else:
+            s = self.distribution if self.isChance() else self.information_set.getAverageStrategy()
+        for a in range(len(self.children)):
+            child_u = self.children[a].getExpectedDeviatedUtility(mu, player) # u = [p1, p2, p3]
+            u += child_u * s[a]
+
+        return u
+
+    def getLatter(self, infoid, action_plan = None, player = 0):
+        '''
+        returns 1 values of informationset
+        '''
+        if (self.isLeaf()):
+            return np.array(self.utility)[player]
+        # if (self.isChance()):
+        #     u = np.zeros(len(self.children))
+        #     for a in range(len(self.children)):
+        #         u[a] = self.children[a].getLatter(action_plan)
+        #     return u
+        # if (not self.isChance() and self.parent.isChance()):
+            # print('self.children: ', self.children)
+            # print('action_plan', action_plan[self.information_set.id])
+        if (infoid == self.information_set.id):
+            return self.children[action_plan[self.information_set.id]].getLatter(infoid, player=player)
+        
+        u = 0
+        s = self.distribution if self.isChance() else self.information_set.getAverageStrategy()
+        for a in range(len(self.children)):
+            child_u = self.children[a].getLatter(infoid, player=player)
+            u += child_u * s[a]
+
+        return u
 
 class CFRChanceNode(CFRNode):
     """
@@ -747,7 +802,7 @@ class CFRInformationSet:
         self.exRM = {}
         self.externalsigma = ""
         self.utility = [0] * action_count
-        self.mu_T = [0] * action_count
+        self.mu_T = np.zeros(action_count)
 
         self.cumulative_regret = [0 for a in range(self.action_count)]
         self.cumulative_strategy = [0 for a in range(self.action_count)]
@@ -792,7 +847,14 @@ class CFRInformationSet:
         #     return [self.cumulative_strategy[a] / norm for a in range(self.action_count)]
         # else:
         #     return [1 / self.action_count for a in range(self.action_count)]
-        return [i / self.cfr_tree.root.T for i in self.mu_T]
+        # print(self.mu_T)
+        return self.mu_T / np.sum(self.mu_T)
+
+    def getTriggerRegret(self):
+        pass
+
+    def getRecommendedUtility(self):
+        pass
 
     def sampleAction(self):
         """

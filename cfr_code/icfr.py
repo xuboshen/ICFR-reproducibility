@@ -2,8 +2,26 @@ from functools import reduce
 from random import sample
 from data_structures.regret_minimizers import InternalRM, ExternalRM
 import time
+import random
+import matplotlib.pyplot as plt
+import numpy as np
 
 from data_structures.cfr_trees import CFRJointStrategy
+
+def drawing(results, iterations):
+    fig, ax = plt.subplots()
+    ax.plot(range(1, iterations + 1), results)
+    ax.set_xlabel("Iteration")
+    ax.set_ylabel("Epsilon(delta(mu_T))")
+    # ax.set_ylim(bottom = 1e-7, top = 1e-1)
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    # ax.legend("K34")
+    ax.legend("K33")
+    # ax.set_yticks([1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5])
+    
+    # fig.savefig("K3_4_ylog_epsilon_results3.png", dpi=200)
+    fig.savefig("ddebug", dpi=200)
 
 def Merge(d1, d2):
     # if (d1 is None):
@@ -13,6 +31,24 @@ def Merge(d1, d2):
     # else:
     d2.update(d1)
     return d2
+
+def getEpsilon(node, p, action_plan):
+    epsilon = 0
+    if (node.isChance()):
+        for a in range(len(node.children)):
+            epsilon = np.maximum(epsilon, getEpsilon(node.children[a], p * node.distribution[a], action_plan))
+        return epsilon
+    if (node.isLeaf()):
+        return 0
+    iset = node.information_set
+    player = iset.player
+    r = random.random()
+    mu = [r, 1 - r]
+
+    epsilon = p * node.getEpsilon(action_plan, mu, player)
+    for a in range(len(node.children)):
+        epsilon = np.maximum(epsilon, getEpsilon(node.children[a], p * node.information_set.getAverageStrategy()[a], action_plan))
+    return epsilon
 
 def init(node):
     if (node.isChance()):
@@ -123,13 +159,22 @@ def SolveWithICFR(icfr_tree, iterations, perc = 10, show_perc = True, checkEvery
         # Run ICFR for each player
         # to sample internal for each infomation set for each player
         action_plan = ICFR_sampling(icfr_tree.root) # node.id : sampled_action
-        # ok: print(action_plan, len(action_plan))
+        # print(action_plan, len(action_plan))
         ICFR_Observe(icfr_tree.root, action_plan)
         ICFR_Update(icfr_tree.root)
         # Update the current strategy for each information set
         # for infoset in icfr_tree.information_sets.values():
         #     infoset.updateCurrentStrategy()
-
+        # temp_iteration = 5
+        # temp_max = 0
+        # while (temp_iteration):
+        #     r = random.random()
+        #     mu = [r, 1 - r]
+        #     temp_max = np.maximum(temp_max, np.max(icfr_tree.root.getEpsilon(action_plan, mu)))
+        #     temp_iteration -= 1
+        # graph_data += [np.max(icfr_tree.root.getEpsilon(action_plan, mu))]        
+        eps = getEpsilon(icfr_tree.root, 1, action_plan)
+        graph_data += [eps]
         if(checkEveryIteration > 0 and i % checkEveryIteration == 0):
             icfr_tree.root.T = i
             data = {'epsilon': icfr_tree.checkMarginalsEpsilon(),
@@ -137,10 +182,15 @@ def SolveWithICFR(icfr_tree, iterations, perc = 10, show_perc = True, checkEvery
                     'duration': time.time() - last_checkpoint_time,
                     'utility': icfr_tree.root.getExpectedUtility()}
             # graph_data.append(data)
+            print('utility:', icfr_tree.root.getExpectedUtility())
+            print('epsilon:', eps)
 
             if(check_callback != None):
                 check_callback(data)
                 
             last_checkpoint_time = time.time()
         # print('test:', time.time() - start_time)
+    print("epsilon:",  graph_data)
+    drawing(graph_data, iterations)
+    # print(len(graph_data), iterations)
     return {'utility': icfr_tree.root.getExpectedUtility(), 'graph_data': graph_data, 'tot_time': time.time() - start_time}
