@@ -51,3 +51,4 @@ def draw_tree(tree, title = 'Tree'):
 	nx.draw_networkx_labels(G, pos)
 
 	plt.rcParams["figure.figsize"] = old_figsize
+	plt.savefig("tree.png", dpi = 200)

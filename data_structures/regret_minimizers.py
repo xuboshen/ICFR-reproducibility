@@ -29,7 +29,7 @@ class RegretMinimizer:
         return self.recommended_action
 
     def observe(self, utility):
-        self.utility = utility
+        self.utility = np.array(utility)
         regret = self.utility - self.utility[self.recommended_action]
         self.regretSum = self.regretSum + regret
  
@@ -51,8 +51,8 @@ class RegretMinimizer:
         left = 0
         right = strategy.size
         r = np.random.random()
-        while (left < right):
-            mid = (left + right) // 2
+        while (left < right): 
+            mid = (left + right) //2
             if (preSumStrategy[mid] >= r):
                 right = mid
             else:
@@ -66,12 +66,15 @@ class InternalRM(RegretMinimizer):
         self.strategySum = np.zeros((actionNumbers, actionNumbers))
         self.utility = np.zeros((actionNumbers, actionNumbers))
         self.recommended_action = -1 
+        self.rcmd_action = np.zeros(actionNumbers, dtype=int)
         self.p = None
     # ?
     def observe(self, utility):
         for i in range(self.actionNumbers):
             self.utility[i] = self.p[i] * utility
-            self.regretSum[i] = self.regretSum[i] + self.utility[i] - self.utility[i][self.recommended_action]
+            # self.regretSum[i] = self.regretSum[i] + self.utility[i] - self.utility[i][self.recommended_action]
+            # print(self.rcmd_action[i])
+            self.regretSum[i] = self.regretSum[i] + self.utility[i] - self.utility[i][self.rcmd_action[i]]
     
     def getStrategy(self):
         AN_strategy = np.maximum(self.regretSum, 0)
@@ -81,17 +84,18 @@ class InternalRM(RegretMinimizer):
                 AN_strategy[i] = AN_strategy[i] / normalizingStrategy[i]
             else:
                 AN_strategy[i] = np.ones(AN_strategy.shape[0]) / self.actionNumbers
+            self.rcmd_action[i] = self.getAction(AN_strategy[i])
         self.strategySum = self.strategySum + AN_strategy
 # https://github.com/scipy/scipy/issues/10284
         p = null_space(AN_strategy.T - np.eye(AN_strategy.shape[0]))
         if (p[0] < 0):
             p = -p
-        self.p = p
-        return p
+        self.p = p / np.sum(p)
+        return self.p
 
 class ExternalRM(RegretMinimizer):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, action_count):
+        super().__init__(action_count)
    
     def getStrategy(self):
         strategy = np.maximum(self.regretSum, 0)

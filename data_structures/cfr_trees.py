@@ -338,13 +338,36 @@ class CFRNode:
         Return the utility from the leaf reached following actionPlan and starting from this node.
         If no leaf is reached, return the default value.
         """
-
+        # print(self.information_set.id)
         if(self.isLeaf()):
             return self.utility
         elif(self.information_set.id not in actionPlan):
             return default
         else:
+            # ??????????????????????????????????????????????????
             return self.children[actionPlan[self.information_set.id]].utilityFromActionPlan(actionPlan, default)
+# added
+    def icfrutilityFromActionPlan(self, actionPlan, rootiset, p = 1, default=None):
+        if (self.isLeaf()):
+            return np.array(self.utility)
+        iset = self.information_set
+        if (rootiset is not None and iset.player == rootiset.player):
+            # return np.zeros(len(self.children))
+        # if (rootiset.id == self.information_set.id):
+           return self.children[actionPlan[iset.id]].icfrutilityFromActionPlan(actionPlan, rootiset)
+ 
+        u = None
+        s = self.information
+        for i in range(len(self.children)):
+            childUtility = self.children[i].icfrutilityFromActionPlan(actionPlan, rootiset, default)
+            # print(childUtility, u)
+            if u is None:
+                u = childUtility
+            else:
+                u += childUtility
+        
+        return u
+
 
     def utilityFromJointSequence(self, js):
         """
@@ -643,6 +666,7 @@ class CFRChanceNode(CFRNode):
     def __init__(self, base_node, parent = None):
         CFRNode.__init__(self, base_node, parent)
         self.distribution = base_node.distribution
+        self.action = None
 
     def isChance(self):
         return True
@@ -658,7 +682,8 @@ class CFRChanceNode(CFRNode):
         for i in range(len(self.distribution)):
             count += self.distribution[i]
             if(r < count):
-                return i
+                self.action = i
+                return self.action
 
     def computeReachability(self, actionPlan, pi):
         """
@@ -798,11 +823,16 @@ class CFRInformationSet:
 
         self.reachability = -1
 # icfr tag
-        self.inRM = InternalRM()
+        self.action = -1
+        self.inRM = InternalRM(self.action_count)
         self.exRM = {}
         self.externalsigma = ""
         self.utility = [0] * action_count
         self.mu_T = np.zeros(action_count)
+        self.tag = False
+        self.update = False
+        # self.visits = [[] * action_count] # maps all actions[0, 1] to visits of leaves;
+        self.visits = [{i : 0} for i in self.getChildrenLeaves]
 
         self.cumulative_regret = [0 for a in range(self.action_count)]
         self.cumulative_strategy = [0 for a in range(self.action_count)]
@@ -848,7 +878,10 @@ class CFRInformationSet:
         # else:
         #     return [1 / self.action_count for a in range(self.action_count)]
         # print(self.mu_T)
-        return self.mu_T / np.sum(self.mu_T)
+        if (np.sum(self.mu_T) == 0):
+            return np.array([0.5, 0.5])
+        else:
+            return self.mu_T / np.sum(self.mu_T)
 
     def getTriggerRegret(self):
         pass
