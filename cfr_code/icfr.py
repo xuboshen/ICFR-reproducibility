@@ -44,11 +44,11 @@ def addMerge(d1, d2):
             d1[k] = d2[k]
     return d1
 # ok
-def getEpsilon(node, p, action_plan):
+def getEpsilon(node, t):
     epsilon = {}
     if (node.isChance()):
         for a in range(len(node.children)):
-            epsilon = addMerge(epsilon, getEpsilon(node.children[a], p * node.distribution[a], action_plan))
+            epsilon = addMerge(epsilon, getEpsilon(node.children[a], t))
         # epsilon = addMerge(epsilon, getEpsilon(node.children[node.action], p * node.distribution[node.action], action_plan))
         return epsilon
     if (node.isLeaf()):
@@ -60,11 +60,11 @@ def getEpsilon(node, p, action_plan):
     while (num_mu):
         r = random.random()
         mu = [r, 1 - r]
-        eps = max(p * node.getEpsilon(action_plan, mu, player), eps)
+        eps = max(node.getEpsilon(t, mu, player), eps)
         num_mu -= 1
     epsilon[iset.id] = eps
     for a in range(len(node.children)):
-        epsilon = addMerge(epsilon, getEpsilon(node.children[a], p * node.information_set.getAverageStrategy()[a], action_plan))
+        epsilon = addMerge(epsilon, getEpsilon(node.children[a], t))
     return epsilon
 # ok
 def init(node):
@@ -101,39 +101,31 @@ def ICFR_sampling(node):
     """
     ICFR sampling algorithm.
     """
-    # {infomationset_id: sqampleAction}
     action_plan = {}
     if node.isChance():
-        # print("begins", node.id, node.isChance())
         for child in node.children:
-            action_plan = Merge(action_plan, ICFR_sampling(child)[0])
-        # action = node.sampleAction()
-        # action_plan = Merge(action_plan, ICFR_sampling(node.children[action]))
-            
-        return action_plan
+            ac, leaf = ICFR_sampling(child)
+            action_plan = Merge(action_plan, ac)
+        return action_plan, leaf
     
     if (node.isLeaf()):
         return {}, node
-    # print("normal node", node.id, node.isChance())
     iset = node.information_set
-    # print(iset, iset.nodes[0].id, iset.nodes[1].id, len(iset.nodes))
     if (iset.reachability == 1):
         action_plan[iset.id] = iset.action
-        # for a in range(len(node.children)):
-        #     if (a != iset.action):
-        #         createExternalRM(node.children[a], iset)
         for a in range(len(node.children)):
             ac, leaf = ICFR_sampling(node.children[a])
-            iset.visits[leaf] += 1
+            if leaf in iset.visits.keys():
+                iset.visits[leaf] += 1
+            else:
+                iset.visits[leaf] = 0
             action_plan = Merge(action_plan, ac)
-        return action_plan
+        return action_plan, leaf
 
     elif (iset.reachability == -1):
         iset.reachability = 1
-        # print(iset.id, iset.reachability)
         sampledAction = iset.inRM.recommend()
         iset.action = sampledAction
-        # print(iset.inRM.regretSum)
         iset.externalsigma = str(iset.id) + '.' + str(sampledAction)
         for a in range(len(node.children)):
             if (a != sampledAction):
@@ -154,8 +146,11 @@ def ICFR_sampling(node):
 
     for a in range(len(node.children)):
         ac, leaf = ICFR_sampling(node.children[a])
-        if (iset.reachability is not 0):
-            iset.visits[leaf] += 1
+        if (iset.reachability != 0):
+            if leaf in iset.visits.keys():
+                iset.visits[leaf] += 1
+            else:
+                iset.visits[leaf] = 0
         action_plan = Merge(action_plan, ac)
     return action_plan, leaf
 # ???
@@ -222,7 +217,7 @@ def SolveWithICFR(icfr_tree, iterations, perc = 10, show_perc = True, checkEvery
         # for infoset in icfr_tree.information_sets.values():
         #     infoset.updateCurrentStrategy()
         # graph_data += [np.max(icfr_tree.root.getEpsilon(action_plan, mu))]        
-        eps = getEpsilon(icfr_tree.root, 1, action_plan)
+        eps = getEpsilon(icfr_tree.root, i)
         graph_data += [max(eps.values())]
         if(checkEveryIteration > 0 and i % checkEveryIteration == 0):
             icfr_tree.root.T = i

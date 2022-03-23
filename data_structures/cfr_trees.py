@@ -73,6 +73,7 @@ class CFRTree:
             for a in range(iset.action_count):
                 iset.children_infoset.append(list(iset.getChildrenInformationSets(a)))
                 iset.children_leaves.append(list(iset.getChildrenLeaves(a)))
+                # print(iset.children_leaves)
 
     def sampleActionPlan(self):
         """
@@ -305,7 +306,7 @@ class CFRNode:
         self.base_node = base_node
 
         self.is_leaf = len(self.children) == 0
-        self.utility = [0] * len(self.children)
+        self.utility = [0] * 3
         if(self.isLeaf()):
             self.utility = base_node.utility
 
@@ -357,7 +358,7 @@ class CFRNode:
            return self.children[actionPlan[iset.id]].icfrutilityFromActionPlan(actionPlan, rootiset)
  
         u = None
-        s = self.information
+        # s = self.information
         for i in range(len(self.children)):
             childUtility = self.children[i].icfrutilityFromActionPlan(actionPlan, rootiset, default)
             # print(childUtility, u)
@@ -570,11 +571,11 @@ class CFRNode:
         if self.isLeaf():
             return set([self])
 
-        if action < 0 and self.player == player:
-            return set()
+        # if action < 0 and self.player == player:
+            # return set()
 
-        if self.player == player:
-            return self.children[action].getChildrenLeaves(-1, player)
+        # if self.player == player:
+        #     return self.children[action].getChildrenLeaves(-1, player)
         else:
             res = set()
             for child in self.children:
@@ -603,10 +604,10 @@ class CFRNode:
 
         return u
     
-    def getEpsilon(self, action_plan, mu, player):
+    def getEpsilon(self, t, mu, player):
         # epsilon relating to this informationset
         DeviU = self.getExpectedDeviatedUtility(mu, player)
-        LattU = self.getLatter(self.information_set.id, action_plan, player)
+        LattU = self.getLatter(t, player)
         # print('DeviatedUtility:', DeviU)
         # print('LatterUtility:', LattU)
         return DeviU - LattU
@@ -633,30 +634,19 @@ class CFRNode:
 
         return u
 
-    def getLatter(self, infoid, action_plan = None, player = 0):
+    def getLatter(self, t, player = 0):
         '''
         returns 1 values of informationset
         '''
-        if (self.isLeaf()):
-            return np.array(self.utility)[player]
-        # if (self.isChance()):
-        #     u = np.zeros(len(self.children))
-        #     for a in range(len(self.children)):
-        #         u[a] = self.children[a].getLatter(action_plan)
-        #     return u
-        # if (not self.isChance() and self.parent.isChance()):
-            # print('self.children: ', self.children)
-            # print('action_plan', action_plan[self.information_set.id])
-        if (infoid == self.information_set.id):
-            return self.children[action_plan[self.information_set.id]].getLatter(infoid, player=player)
-        
-        u = 0
-        s = self.distribution if self.isChance() else self.information_set.getAverageStrategy()
-        for a in range(len(self.children)):
-            child_u = self.children[a].getLatter(infoid, player=player)
-            u += child_u * s[a]
+        iset = self.information_set
+        childleaves = iset.children_leaves
+        u = np.zeros_like(self.utility, dtype = float)
+        for leaf in childleaves[0]:
+            if (leaf in iset.visits.keys()):
+                print(u, (iset.visits[leaf]), (t), (leaf.utility))
+                u += iset.visits[leaf] / t * np.array(leaf.utility)
 
-        return u
+        return u[player]
 
 class CFRChanceNode(CFRNode):
     """
@@ -831,8 +821,14 @@ class CFRInformationSet:
         self.mu_T = np.zeros(action_count)
         self.tag = False
         self.update = False
+        self.visits = {}
         # self.visits = [[] * action_count] # maps all actions[0, 1] to visits of leaves;
-        self.visits = [{i : 0} for i in self.getChildrenLeaves]
+        # self.children_leaves = []
+        # for a in range(self.action_count):
+        #     self.children_leaves.append(list(self.getChildrenLeaves(a)))
+        # print(self.children_leaves)
+        # self.visits = [{i : 0} for i in self.children_leaves]
+        # print("visits", self.visits)
 
         self.cumulative_regret = [0 for a in range(self.action_count)]
         self.cumulative_strategy = [0 for a in range(self.action_count)]
