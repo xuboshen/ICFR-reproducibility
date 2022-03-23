@@ -817,7 +817,7 @@ class CFRInformationSet:
         self.inRM = InternalRM(self.action_count)
         self.exRM = {}
         self.externalsigma = ""
-        self.utility = [0] * action_count
+        self.utility = [0] * 3
         self.mu_T = np.zeros(action_count)
         self.tag = False
         self.update = False
