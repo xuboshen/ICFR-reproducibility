@@ -88,8 +88,7 @@ class InternalRM(RegretMinimizer):
         self.strategySum = self.strategySum + AN_strategy
 # https://github.com/scipy/scipy/issues/10284
         p = null_space(AN_strategy.T - np.eye(AN_strategy.shape[0]))
-        if (p[0] < 0):
-            p = -p
+        p = np.abs(p)
         self.p = p / np.sum(p)
         return self.p
 

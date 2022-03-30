@@ -15,7 +15,7 @@ def build_kuhn_tree(num_players, rank):
     hand_probability = 1 / len(hands)
     for hand in hands:
         n = tree.addNode(0, parent = root, probability = hand_probability, actionName = str(hand))
-        build_kuhn_hand_tree(hand, ['n'] * num_players, 0, n, tree)
+        build_kuhn_hand_tree(hand, ['n'] * num_players, 0, n, tree, "")
         
     for i in range(len(hands)):
         for j in range(i+1, len(hands)):
@@ -44,10 +44,11 @@ def create_information_sets(node1, node2, players_to_merge):
     for i in range(len(node1.children)):
         create_information_sets(node1.children[i], node2.children[i], players_to_merge)
 
-def build_kuhn_hand_tree(hand, previous_moves, current_player, current_node, tree):
+def build_kuhn_hand_tree(hand, previous_moves, current_player, current_node, tree, seq: str):
     """
     Recursively build the subtree for the Kuhn game where the hand is fixed.
     """
+    current_node.seq = str(hand[current_player] + 1) + seq
 
     actionPrefix = 'p' + str(current_player)
     num_players = len(hand)
@@ -70,11 +71,11 @@ def build_kuhn_hand_tree(hand, previous_moves, current_player, current_node, tre
         
         callNode = tree.addNode(next_player, parent = current_node, actionName = actionPrefix + 'b')
         previous_moves[current_player] = 'b'
-        build_kuhn_hand_tree(hand, previous_moves.copy(), next_player, callNode, tree)
+        build_kuhn_hand_tree(hand, previous_moves.copy(), next_player, callNode, tree, seq + 'B')
         
         foldNode = tree.addNode(next_player, parent = current_node, actionName = actionPrefix + 'f')
         previous_moves[current_player] = 'f'
-        build_kuhn_hand_tree(hand, previous_moves.copy(), next_player, foldNode, tree)
+        build_kuhn_hand_tree(hand, previous_moves.copy(), next_player, foldNode, tree, seq + 'P')
     
     else: # No bet yet, so I can check or bet
         previous_moves[current_player] = 'c'
@@ -82,11 +83,11 @@ def build_kuhn_hand_tree(hand, previous_moves, current_player, current_node, tre
             tree.addLeaf(current_node, kuhn_utility(hand, previous_moves), actionName = actionPrefix + 'c')
         else:        
             checkNode = tree.addNode(next_player, parent = current_node, actionName = actionPrefix + 'c')
-            build_kuhn_hand_tree(hand, previous_moves.copy(), next_player, checkNode, tree)
+            build_kuhn_hand_tree(hand, previous_moves.copy(), next_player, checkNode, tree, seq + 'P')
             
         betNode = tree.addNode(next_player, parent = current_node, actionName = actionPrefix + 'b')
         previous_moves[current_player] = 'b'
-        build_kuhn_hand_tree(hand, previous_moves.copy(), next_player, betNode, tree)
+        build_kuhn_hand_tree(hand, previous_moves.copy(), next_player, betNode, tree, seq + 'B')
 
 def kuhn_utility(hand, moves):
     """

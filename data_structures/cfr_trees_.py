@@ -1,5 +1,4 @@
 from functools import reduce
-from cfr_code.cfr import CFR
 from data_structures.trees import Tree, Node, Leaf, randomTree
 from data_structures.regret_minimizers import InternalRM, ExternalRM
 import random
@@ -24,7 +23,7 @@ class CFRTree:
         self.numOfPlayers = base_tree.numOfPlayers
 # icfr
         self.actionPlan = {}
-        # self.triggerplan = {}
+        self.triggerplan = {}
 
         nodes_to_expand = [ self.root ]
 
@@ -506,17 +505,17 @@ class CFRNode:
         else:
             return self.children[action].isActionPlanLeadingToInfoset(actionPlan, targetInfoset)
     
-    def isActionPlanLeadingToLeaf(self, root, actionPlan, leaf):
+    def isActionPlanLeadingToLeaf(self, root, actionPlan, leaf, mu = [1, 1]):
         if (self.isLeaf()):
             if (self == leaf):
-                return True
+                return 1
             else:
-                return False
+                return 0
         action = actionPlan[self.information_set.id]
         if (self.player == root.player):
-            return self.children[action].isActionPlanLeadingToLeaf(root, actionPlan, leaf)
+            return mu[action] * self.children[action].isActionPlanLeadingToLeaf(root, actionPlan, leaf, mu)
         else:
-            return self.children[action].isActionPlanLeadingToLeaf(root, actionPlan, leaf)
+            return self.children[action].isActionPlanLeadingToLeaf(root, actionPlan, leaf, mu)
 
     def clearMarginalizedUtility(self):
         """
@@ -559,55 +558,6 @@ class CFRNode:
             for a in range(len(self.children)):
                 self.children[a].marginalizePlayerFromBehaviourals(p * s[a], marginalized_player)
 
-    def isPiInInfoset(self, actionplan, infoset, player):
-        if (self.isLeaf()):
-            return False
-
-        iset = self.information_set
-
-        if (self.information_set == infoset):
-            return True
-
-        if (self.player == player):
-            return self.children[actionplan[iset.id]].isPiInInfoset(actionplan, infoset, player)
-        else:
-            ans = False
-            for a in range(len(self.children)):
-                ans = ans or self.children[a].isPiInInfoset(actionplan, infoset, player)
-            return ans
-
-
-    def isPiInLeaf(self, leaf, actionplan, player):
-        if (self.isLeaf()):
-            if (self == leaf):
-                return True
-            else:
-                return False
-        iset = self.information_set
-        if (self.player == player):
-            return self.children[actionplan[iset.id]].isPiInLeaf(leaf, actionplan, player)
-        else:
-            ans = False
-            for a in range(len(self.children)):
-                ans = ans or self.children[a].isPiInLeaf(leaf, actionplan, player)
-            return ans
-
-
-    def isPiMinusIInLeaf(self, leaf, actionplan, player):
-        if (self.isLeaf()):
-            if (self == leaf):
-                return True
-            else:
-                return False
-        iset = self.information_set
-        if (self.player != player):
-            return self.children[actionplan[iset.id]].isPiMinusIInLeaf(leaf, actionplan, player)
-        else:
-            ans = False
-            for a in range(len(self.children)):
-                ans = ans or self.children[a].isPiMinusIInLeaf(leaf, actionplan, player)
-            return ans
-
     def getChildrenInformationSets(self, action, player):
         """
         Get all the information sets of the given player directly reachable (e.g. no other infoset of the same player in between)
@@ -637,11 +587,11 @@ class CFRNode:
         if self.isLeaf():
             return set([self])
 
-        if action < 0 and self.player == player:
-            return set()
+        # if action < 0 and self.player == player:
+            # return set()
 
-        if self.player == player:
-            return self.children[action].getChildrenLeaves(-1, player)
+        # if self.player == player:
+        #     return self.children[action].getChildrenLeaves(-1, player)
         else:
             res = set()
             for child in self.children:
@@ -673,51 +623,63 @@ class CFRNode:
     def getEpsilon(self, tree, t, a, player):
         # epsilon relating to the specific informationset
         DeviU = self.getExpectedDeviatedUtility(t, a, tree, player)
-        LattU = self.getLatter(t, tree, a, player) #Only calculate once
-        # if (self.information_set.id == 49):
-        # print(a, self.information_set.nodes[0].base_node.seq, self.information_set.nodes[0].base_node.actionNames[a], "Information set id:{}; sequence: {}, DeviatedUtility: {}, LatterUtility: {}".format(
-        #     self.information_set.id, self.information_set.sequence, DeviU, LattU
-        # ))
-        return (DeviU - LattU)
+        LattU = self.getLatter(t, tree, a, player)
+        # print('DeviatedUtility:', DeviU)
+        # print('LatterUtility:', LattU)
+        return (DeviU - LattU) * 1 / 6
     
-    def getExpectedDeviatedUtility(self, t, a, tree:CFRTree, player):
+    def getExpectedDeviatedUtility(self, t, a, tree, player):
         '''
         returns one value of delta of this node 
         '''
-        u = 0
+        u = np.zeros_like(self.utility, dtype=float)
         iset = self.information_set
         childleaves = []
-        for i in range(len(self.children)):
-            childleaves += list(iset.getTerminals(i))
+        r = random.random()
+        mu = [r, 1 - r]
+        # pi(I)
+        for a in range(len(self.children)):
+            childleaves += list(iset.getTerminals(a))
+        # print("childleaves:", len(childleaves))
         for leaf in childleaves:
             mu1 = 0
             mu2 = 0
             for string in tree.actionPlan:
                 actionplan = CFRJointStrategy.stringToActionPlan(string)
-                if (actionplan[iset.id] == a and tree.root.isPiInInfoset(actionplan, iset, player) is True and tree.root.isPiMinusIInLeaf(leaf, actionplan, player)):
-                    mu1 += tree.actionPlan[string][0] / t
-            # for string in tree.actionPlan:
-                # actionplan = CFRJointStrategy.stringToActionPlan(string)
-                if (tree.root.isPiInLeaf(leaf, actionplan, player) is True):
-                    mu2 += tree.actionPlan[string][1]
-            u += np.array(leaf.utility)[player] * mu1 * mu2 / len(tree.root.children)
-        return u
+                if (actionplan[iset.id] == a and tree.root.isActionPlanLeadingToInfoset(actionplan, self.information_set) is True):
+                    m = self.isActionPlanLeadingToLeaf(self, actionplan, leaf, mu)
+                    if (abs(m) < 1e-6):
+                        continue
+                    # find the only terminal z
+                        # find a pi^ whose terminaltes at z
+                    mu1 += tree.actionPlan[string] / t
+                    mu2 += m
+            u += np.array(leaf.utility) * mu1 * mu2
 
-    def getLatter(self, t, tree: CFRTree, a, player = 0):
+        return u[player]
+
+    # def getMu(self, root, actionplan, mu):
+    #     if (self.isLeaf()):
+    #         return 1
+    #     if (self.player != root.player):
+    #         return self.children[actionplan[self.information_set.id]].getMu(root, actionplan, mu)
+    #     else:
+    #         return mu[actionplan[self.information_set.id]] * self.children[actionplan[self.information_set.id]].getMu(root, actionplan, mu)
+
+    def getLatter(self, t, tree, a, player = 0):
         '''
         returns 1 values of informationset
         '''
-        u = 0 
+        u = np.zeros_like(self.utility, dtype = float)
         iset = self.information_set
         childleaves = list(iset.getTerminals(a))
         for leaf in childleaves:
-            mu = 0
-            for string in tree.actionPlan:
+            for string in tree.actionPlan:    
                 actionPlan = CFRJointStrategy.stringToActionPlan(string)
-                if (actionPlan[iset.id] == a and tree.root.isActionPlanLeadingToInfoset(actionPlan, self.information_set) is True and tree.root.isActionPlanLeadingToLeaf(self, actionPlan, leaf) is True):
-                    mu += tree.actionPlan[string][0] / t
-            u += np.array(leaf.utility)[player] * mu / len(tree.root.children)
-        return u
+                if (tree.root.isActionPlanLeadingToInfoset(actionPlan, self.information_set) is True and tree.root.isActionPlanLeadingToLeaf(self, actionPlan, leaf) != 0):
+                    # print(len(childleaves), childleaves)
+                    u += tree.actionPlan[string] / t * np.array(leaf.utility)
+        return u[player]
 
 class CFRChanceNode(CFRNode):
     """
@@ -844,28 +806,10 @@ class CFRChanceNode(CFRNode):
             res = res or child.isActionPlanLeadingToInfoset(actionPlan, targetInfoset)
         return res
     
-    def isPiInInfoset(self, actionplan, infoset, player):
+    def isActionPlanLeadingToLeaf(self, root, actionPlan, leaf, mu = [1, 1]):
         res = False
         for child in self.children:
-            res = res or child.isPiInInfoset(actionplan, infoset, player)
-        return res
-
-    def isPiInLeaf(self, leaf, actionplan, player):
-        res = False
-        for child in self.children:
-            res = res or child.isPiInLeaf(leaf, actionplan, player)
-        return res
-    
-    def isPiMinusIInLeaf(self, leaf, actionplan, player):
-        res = False
-        for child in self.children:
-            res = res or child.isPiMinusIInLeaf(leaf, actionplan, player)
-        return res
-
-    def isActionPlanLeadingToLeaf(self, root, actionPlan, leaf):
-        res = False
-        for child in self.children:
-            res = res or child.isActionPlanLeadingToLeaf(root, actionPlan, leaf)
+            res = res or child.isActionPlanLeadingToLeaf(root, actionPlan, leaf, mu)
         return res
 
     def clearMarginalizedUtility(self):

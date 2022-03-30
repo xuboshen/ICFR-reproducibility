@@ -82,4 +82,12 @@ def SolveWithCFR(cfr_tree, iterations, perc = 10, show_perc = True, checkEveryIt
                 
             last_checkpoint_time = time.time()
         # print('test:', time.time() - start_time)
+    ans = []
+    for id in cfr_tree.information_sets:
+        # print(icfr_tree.information_sets[id].nodes[0].base_node.seq, icfr_tree.information_sets[id].inRM.getStrategy().reshape(-1).tolist())
+        ans.append('{:>4s}'.format(cfr_tree.information_sets[id].nodes[0].base_node.seq) + ' ' + 
+            str([cfr_tree.information_sets[id].nodes[0].base_node.actionNames[i] for i in range(cfr_tree.information_sets[id].action_count)]) + ' ' + str(
+            (cfr_tree.information_sets[id].getAverageStrategy())))
+    for i in sorted(ans):
+        print(i)
     return {'utility': cfr_tree.root.getExpectedUtility(), 'graph_data': graph_data, 'tot_time': time.time() - start_time}
